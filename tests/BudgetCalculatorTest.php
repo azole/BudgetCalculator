@@ -33,6 +33,8 @@ class BudgetCalculatorTest extends TestCase
         $actual = $calculator->calculate($start, $end);
     }
 
+
+
     /**
      * @test
      * @dataProvider datesProvider
@@ -57,6 +59,7 @@ class BudgetCalculatorTest extends TestCase
         return [
             ['2018/03/01', '2018/03/31', $this->getData(), 0],
             ['2018/01/01', '2018/01/31', $this->getData(), 3100],
+            ['2018/01/01', '2018/01/01', $this->getData(), 100],
             ['2018/01/03', '2018/01/15', $this->getData(), 1300],
             ['2018/01/01', '2018/02/28', $this->getData(), 5900],
             ['2018/01/15', '2018/02/14', $this->getData(), 3100],
