@@ -12,77 +12,93 @@ class BudgetCalculator
     /**
      * BudgetCalculator constructor.
      */
+    private $budgetDateFormat = 'Ym';
+
     public function __construct($model = null)
     {
         $this->model = $model ?: new BudgetModel();
     }
 
-    public function calculate($startDate, $endDate)
+    public function calculate($startDateString, $endDateString)
     {
+        $startDate = $this->convertToDateObject($startDateString);
+        $endDate = $this->convertToDateObject($endDateString);
+
         if ( ! $this->isValidDatePeriod($startDate, $endDate)) {
             throw new Exception('Invalid date');
         }
 
         $monthBudgets = $this->model->query();
 
-        $start = new Carbon($startDate);
-        $end = new Carbon($endDate);
-        $iterator = $start->copy();
-
-        $keys = [];
-        while ($this->notDone($iterator, $end)) {
-            $keys[] = $iterator->format('Ym');
-
-            $iterator = $iterator->addMonth(1);
-        }
+        $keys = $this->calculateMonthKeys($startDate, $endDate);
 
         $sum = 0;
-
-
-        if($start->format('Ym') == $end->format('Ym')) {
-            $key = $start->format('Ym');
-
-            if (isset($monthBudgets[$key])) {
-                $days = $end->diffInDays($start) + 1;
-                $ratio = $days / $start->daysInMonth;
-                return $monthBudgets[$key] * $ratio;
-            }
-            return 0;
-        }
         foreach ($keys as $i => $key) {
+            // get the budge of current month
             $monthBudget = isset($monthBudgets[$key]) ? $monthBudgets[$key] : 0;
 
             if ($i == 0) {
-                printf("%s:%d\n", 'first key', $key);
-                $days = $start->copy()->lastOfMonth()->diffInDays($start) + 1;
-                $ratio = $days / $start->daysInMonth;
-                $sum += $monthBudget * $ratio;
+                // first month
+                // check if startDate and endDate is same month
+                $monthEndDate = $key == $endDate->format($this->budgetDateFormat) ? $endDate : $startDate->copy()->lastOfMonth();
+
+                $sum += $monthBudget * $this->calculateRatio($startDate, $monthEndDate);
             } elseif ($i == count($keys) - 1) {
-                printf("%s:%d\n", 'last key', $key);
-                $days = $end->day;
-                $ratio = $days / $end->daysInMonth;
-                $sum += $monthBudget * $ratio;
+                // last month
+                $sum += $monthBudget * $this->calculateRatio($endDate->copy()->startOfMonth(), $endDate);
             } else {
-                // do nothing
                 $sum += $monthBudget;
             }
-
-
         }
 
         return $sum;
     }
 
-    private function isValidDatePeriod($start, $end)
+    /**
+     * @param $end
+     * @param $start
+     * @return float|int
+     *
+     */
+    private function calculateRatio($start, $end)
     {
-        $startDate = new DateTime($start);
-        $endDate = new DateTime($end);
+        return ($end->diffInDays($start) + 1) / $start->daysInMonth;
+    }
 
+    private function isValidDatePeriod(Carbon $startDate, Carbon $endDate)
+    {
         return $endDate >= $startDate;
     }
 
     private function notDone(Carbon $iterator, Carbon $end)
     {
-        return $iterator->format('Ym') <= $end->format('Ym');
+        return $iterator->format($this->budgetDateFormat) <= $end->format($this->budgetDateFormat);
+    }
+
+    /**
+     * @param $dateString
+     * @return Carbon
+     */
+    private function convertToDateObject($dateString)
+    {
+        return new Carbon($dateString);
+    }
+
+    /**
+     * @param $iterator
+     * @param $endDate
+     * @param $keys
+     * @return array
+     */
+    public function calculateMonthKeys($startDate, $endDate)
+    {
+        $keys = [];
+        $iterator = $startDate->copy();
+        while ($this->notDone($iterator, $endDate)) {
+            $keys[] = $iterator->format($this->budgetDateFormat);
+
+            $iterator = $iterator->addMonth(1);
+        }
+        return $keys;
     }
 }
