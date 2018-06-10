@@ -1,18 +1,39 @@
 <?php
 
+/*
+ *
+    # 預算查詢
+
+    201806 300 --> 不會有小數點，不會有負數
+    201808 360
+
+    yyyymmdd
+
+
+    20180615 - 20180715
+      16        15
+
+    300 x 16/30 + 0 * 15 = 160
+
+    每個月的天數都不同，2月也要判斷閏年
+
+    不需要判斷輸入格式問題
+
+    時間因素，先不考慮小數點
+ *
+ * */
+
 use Carbon\Carbon;
 
 require __DIR__ . '/BudgetModel.php';
+require __DIR__ . '/Period.php';
+require __DIR__ . '/Budget.php';
 
 class BudgetCalculator
 {
     /** @var BudgetModel $model */
     private $model;
 
-    /**
-     * BudgetCalculator constructor.
-     */
-    private $budgetDateFormat = 'Ym';
 
     public function __construct($model = null)
     {
@@ -21,82 +42,27 @@ class BudgetCalculator
 
     public function calculate($startDateString, $endDateString)
     {
-        $startDate = $this->convertToDateObject($startDateString);
-        $endDate = $this->convertToDateObject($endDateString);
-
-        if ( ! $this->isValidDatePeriod($startDate, $endDate)) {
-            throw new Exception('Invalid date');
-        }
+        $period = new Period($startDateString, $endDateString);
 
         $monthBudgets = $this->model->query();
+        $budgets = array_map(function($value, $yearMonth) {
+            return new Budget($yearMonth, $value);
+        }, $monthBudgets, array_keys($monthBudgets));
 
-        $keys = $this->calculateMonthKeys($startDate, $endDate);
+        return array_reduce($budgets, function($carry, $budget) use($period) {
+            return $carry + $budget->effectiveAmount($period);
+        }, 0);
+    }
 
-        $sum = 0;
-        foreach ($keys as $i => $key) {
-            // get the budge of current month
-            $monthBudget = isset($monthBudgets[$key]) ? $monthBudgets[$key] : 0;
-
-            if ($i == 0) {
-                // first month
-                // check if startDate and endDate is same month
-                $monthEndDate = $key == $endDate->format($this->budgetDateFormat) ? $endDate : $startDate->copy()->lastOfMonth();
-
-                $sum += $this->calculateRatioBudget($monthBudget, $startDate, $monthEndDate);
-            } elseif ($i == count($keys) - 1) {
-                // last month
-                $sum += $this->calculateRatioBudget($monthBudget, $endDate->copy()->startOfMonth(), $endDate);
-            } else {
-                $sum += $monthBudget;
+    public function findBudget($monthBudgets, Carbon $currentMonth)
+    {
+        foreach($monthBudgets as $budget) {
+            if($budget->getYearMonth() == $currentMonth->format('Ym')) {
+                return $budget;
             }
         }
-
-        return $sum;
+        return null;
     }
 
-    /**
-     * @param $end
-     * @param $start
-     * @return float|int
-     *
-     */
-    private function calculateRatioBudget($monthBudget, $start, $end)
-    {
-        return $monthBudget * ($end->diffInDays($start) + 1) / $start->daysInMonth;
-    }
 
-    private function isValidDatePeriod(Carbon $startDate, Carbon $endDate)
-    {
-        return $endDate >= $startDate;
-    }
-
-    /**
-     * @param $dateString
-     * @return Carbon
-     */
-    private function convertToDateObject($dateString)
-    {
-        return new Carbon($dateString);
-    }
-
-    /**
-     * @param $iterator
-     * @param $endDate
-     * @param $keys
-     * @return array
-     */
-    public function calculateMonthKeys($startDate, $endDate)
-    {
-        $keys = [];
-        // addMonthsNoOverflow 處理月底加一個月
-        for($iterator = $startDate->copy(); $this->lteYearMonth($iterator, $endDate); $iterator = $iterator->addMonthsNoOverflow(1)) {
-            $keys[] = $iterator->format($this->budgetDateFormat);
-        }
-        return $keys;
-    }
-
-    private function lteYearMonth(Carbon $iterator, Carbon $end)
-    {
-        return $iterator->format($this->budgetDateFormat) <= $end->format($this->budgetDateFormat);
-    }
 }
