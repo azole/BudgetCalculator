@@ -88,8 +88,8 @@ class BudgetCalculator
     public function calculateMonthKeys($startDate, $endDate)
     {
         $keys = [];
-
-        for($iterator = $startDate->copy(); $this->lteYearMonth($iterator, $endDate); $iterator = $iterator->addMonth(1)) {
+        // addMonthsNoOverflow 處理月底加一個月
+        for($iterator = $startDate->copy(); $this->lteYearMonth($iterator, $endDate); $iterator = $iterator->addMonthsNoOverflow(1)) {
             $keys[] = $iterator->format($this->budgetDateFormat);
         }
         return $keys;
