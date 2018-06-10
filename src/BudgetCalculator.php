@@ -42,10 +42,10 @@ class BudgetCalculator
                 // check if startDate and endDate is same month
                 $monthEndDate = $key == $endDate->format($this->budgetDateFormat) ? $endDate : $startDate->copy()->lastOfMonth();
 
-                $sum += $monthBudget * $this->calculateRatio($startDate, $monthEndDate);
+                $sum += $this->calculateRatioBudget($monthBudget, $startDate, $monthEndDate);
             } elseif ($i == count($keys) - 1) {
                 // last month
-                $sum += $monthBudget * $this->calculateRatio($endDate->copy()->startOfMonth(), $endDate);
+                $sum += $this->calculateRatioBudget($monthBudget, $endDate->copy()->startOfMonth(), $endDate);
             } else {
                 $sum += $monthBudget;
             }
@@ -60,19 +60,14 @@ class BudgetCalculator
      * @return float|int
      *
      */
-    private function calculateRatio($start, $end)
+    private function calculateRatioBudget($monthBudget, $start, $end)
     {
-        return ($end->diffInDays($start) + 1) / $start->daysInMonth;
+        return $monthBudget * ($end->diffInDays($start) + 1) / $start->daysInMonth;
     }
 
     private function isValidDatePeriod(Carbon $startDate, Carbon $endDate)
     {
         return $endDate >= $startDate;
-    }
-
-    private function notDone(Carbon $iterator, Carbon $end)
-    {
-        return $iterator->format($this->budgetDateFormat) <= $end->format($this->budgetDateFormat);
     }
 
     /**
@@ -93,12 +88,15 @@ class BudgetCalculator
     public function calculateMonthKeys($startDate, $endDate)
     {
         $keys = [];
-        $iterator = $startDate->copy();
-        while ($this->notDone($iterator, $endDate)) {
-            $keys[] = $iterator->format($this->budgetDateFormat);
 
-            $iterator = $iterator->addMonth(1);
+        for($iterator = $startDate->copy(); $this->lteYearMonth($iterator, $endDate); $iterator = $iterator->addMonth(1)) {
+            $keys[] = $iterator->format($this->budgetDateFormat);
         }
         return $keys;
+    }
+
+    private function lteYearMonth(Carbon $iterator, Carbon $end)
+    {
+        return $iterator->format($this->budgetDateFormat) <= $end->format($this->budgetDateFormat);
     }
 }
